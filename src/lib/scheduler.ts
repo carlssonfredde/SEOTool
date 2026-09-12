@@ -173,6 +173,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * instead of waiting a full tick.
  */
 export async function tickScheduler(): Promise<void> {
+  if (process.env.SEO_DISABLE_SCHEDULER === "1") return;
   const now = Date.now();
   // Sequential: these all hit the same SQLite file and several launch
   // browsers. Running six at once on a 1-vCPU VPS is how you get an

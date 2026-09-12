@@ -218,13 +218,22 @@ const TOOLS = [
   },
 ];
 
+const readToolNames = new Set([
+  "list_clients", "get_client_overview", "list_audit_issues",
+  "get_keyword_rankings", "get_ai_visibility", "get_citation_landscape",
+  "list_agent_actions", "get_recent_agent_runs", "list_proposed_fixes",
+]);
+const enabledTools = process.env.SEO_MCP_READ_ONLY === "1"
+  ? TOOLS.filter((tool) => readToolNames.has(tool.name))
+  : TOOLS;
+
 const server = new Server(
   { name: "seo-tool", version: "0.1.0" },
   { capabilities: { tools: {} } },
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: TOOLS.map((t) => ({
+  tools: enabledTools.map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: t.inputSchema,
@@ -232,7 +241,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  const tool = TOOLS.find((t) => t.name === req.params.name);
+  const tool = enabledTools.find((t) => t.name === req.params.name);
   if (!tool) {
     return {
       isError: true,

@@ -227,6 +227,9 @@ jobs:
       # subtracting a browser scrape from a Search Console average. That
       # last one reports a six-place gain that never happened, and reads
       # exactly like a real one.
+      - name: Read-only MCP boundary
+        run: node scripts/mcp-readonly-check.mjs
+
       - name: MCP server
         run: pnpm exec tsx scripts/mcp-check.ts
 

@@ -23,3 +23,9 @@ playwright-report
 README.md
 docs
 memory
+
+# Keep local credentials and private acceptance evidence out of image layers.
+.env
+.env.*
+!.env.example
+.local/
