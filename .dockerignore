@@ -29,3 +29,5 @@ memory
 .env.*
 !.env.example
 .local/
+# Machine-specific MCP configuration stays on the host.
+.codex/
