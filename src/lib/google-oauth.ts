@@ -14,14 +14,8 @@ import { decrypt, encrypt } from "@/lib/crypto";
  * require Google verification + a privacy-policy URL we don't have.
  */
 
-export const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/webmasters.readonly",
-  "https://www.googleapis.com/auth/analytics.readonly",
-  "https://www.googleapis.com/auth/business.manage",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/userinfo.email",
-  "openid",
-] as const;
+export { googleScopes } from './google-oauth-policy';
+import { googleScopes, gscOnlyMode } from './google-oauth-policy';
 
 export type GoogleConnectionStatus = {
   configured: boolean;
@@ -139,10 +133,10 @@ export function buildAuthUrl(opts: {
     client_id: opts.clientId,
     redirect_uri: opts.redirectUri,
     response_type: "code",
-    scope: GOOGLE_SCOPES.join(" "),
+    scope: googleScopes().join(" "),
     access_type: "offline",
     prompt: "consent",
-    include_granted_scopes: "true",
+    include_granted_scopes: gscOnlyMode() ? "false" : "true",
   });
   if (opts.state) params.set("state", opts.state);
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -154,6 +148,7 @@ type TokenResponse = {
   expires_in: number;
   token_type: string;
   id_token?: string;
+  scope?: string;
 };
 
 export async function exchangeCodeForTokens(opts: {

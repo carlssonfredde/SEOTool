@@ -5,6 +5,8 @@ import {
   resolveRedirectUri,
 } from "@/lib/google-oauth";
 
+import { createGoogleState, GOOGLE_STATE_COOKIE } from "@/lib/google-oauth-policy";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(
       new URL(
         "/settings/google?error=no-credentials",
-        req.nextUrl.origin,
+        new URL(resolveRedirectUri(req)).origin,
       ),
     );
   }
@@ -32,10 +34,16 @@ export async function GET(req: NextRequest) {
   if (clientId && /^\d+$/.test(clientId)) {
     stateParts.push(`clientId:${clientId}`);
   }
+  const state = createGoogleState(stateParts);
   const url = buildAuthUrl({
     clientId: creds.clientId,
     redirectUri,
-    state: stateParts.length > 0 ? stateParts.join("|") : undefined,
+    state,
   });
-  return NextResponse.redirect(url);
+  const response = NextResponse.redirect(url);
+  response.cookies.set(GOOGLE_STATE_COOKIE, state, {
+    httpOnly: true, sameSite: "lax", secure: redirectUri.startsWith("https:"),
+    path: "/api/google", maxAge: 600,
+  });
+  return response;
 }

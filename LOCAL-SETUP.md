@@ -15,7 +15,7 @@ this repository's Compose files, independent of the website working directory.
 
 Create a private `.env` from `.env.example`, set a strong unique `APP_PASSWORD`,
 `SEO_HOST_PORT=3100`, `SEO_BIND_ADDR=127.0.0.1`, and
-`SEO_DISABLE_SCHEDULER=1`. The scheduler switch also blocks dashboard-triggered
+`SEO_DISABLE_SCHEDULER=1`, and `SEO_GOOGLE_GSC_ONLY=1`. The scheduler switch also blocks dashboard-triggered
 work. Credentials and `.local/` evidence are excluded from Git and build contexts.
 Never copy a real `.env` or database into an image.
 
@@ -130,3 +130,21 @@ Acceptance on 2026-09-12: Docker Engine 29.7.2 / Compose 5.3.1; dashboard bound 
 client 1 audit 1 completed with five pages, score 96, four findings at
 11:46:50 UTC; identical MCP results after dashboard restart. Google and CMS were
 unconnected. Raw acceptance responses remain private in `.local/`.
+
+## Connecting Search Console
+
+This pilot uses `SEO_GOOGLE_GSC_ONLY=1`: Google authorization requests only
+`webmasters.readonly`, `userinfo.email`, and `openid`, without incremental grants.
+The callback rejects missing, insufficient, or broader granted scopes before
+storing tokens. Use a dedicated OAuth client; this mode does not revoke or narrow
+any tokens stored before it was enabled.
+
+Open `/settings/google`. Create a Google Cloud OAuth Web application client with
+the exact displayed loopback redirect URI, enable the Search Console API, and add
+your account as a test user. The owner handles Google terms and credential creation
+and approves the final Google consent. Save credentials locally, then start a new
+connection. Each login uses random state bound to a ten-minute HttpOnly browser
+cookie; callbacks without the matching state cannot store tokens.
+
+References: [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)
+and [Search Console authorization](https://developers.google.com/webmaster-tools/v1/how-tos/authorizing).
