@@ -120,6 +120,7 @@ Use a fresh read-only Astra reviewer at high effort for this security/data bound
 
 ```sh
 node scripts/mcp-readonly-check.mjs
+pnpm exec tsx scripts/local-audit-check.ts
 pnpm exec vitest run src/lib/scheduler.test.ts
 pnpm typecheck
 ```

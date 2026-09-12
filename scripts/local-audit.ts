@@ -1,8 +1,9 @@
 /** Operator-only bounded crawl. Not exposed over MCP. No AI, CMS, or notification calls. */
 import { eq } from 'drizzle-orm';
 import { db, sqlite } from '../src/db/client';
-import { clients, audits, auditIssues } from '../src/db/schema';
+import { clients, audits } from '../src/db/schema';
 import { runAudit } from '../src/lib/audit';
+import { completeLocalAudit } from './local-audit-store';
 
 async function main() {
   const [rawUrl, name] = process.argv.slice(2);
@@ -15,13 +16,7 @@ async function main() {
   const [audit] = await db.insert(audits).values({ clientId: client.id, status: 'running', targetUrl: target, startedAt: new Date() }).returning();
   try {
     const result = await runAudit(target, { maxPages: 5, maxDepth: 1, renderJs: false, ignoreRobots: false, allowPrivateHosts: false });
-    // runAudit.status belongs to the first page to finish, not necessarily
-    // the entry URL. HTTP errors are findings, not proof the entire crawl failed.
-    if (result.pagesCrawled < 1) throw new Error('Crawl failed: no pages could be inspected');
-    db.transaction((tx) => {
-      if (result.findings.length) tx.insert(auditIssues).values(result.findings.map(f => ({ ...f, auditId: audit.id }))).run();
-      tx.update(audits).set({ status: 'completed', score: result.score, pagesCrawled: result.pagesCrawled, issuesCount: result.findings.length, completedAt: new Date(), updatedAt: new Date() }).where(eq(audits.id, audit.id)).run();
-    });
+    completeLocalAudit(audit.id, result);
     console.log(JSON.stringify({ clientId: client.id, auditId: audit.id, options: { maxPages: 5, maxDepth: 1, renderJs: false }, ...result }, null, 2));
   } catch (error) {
     await db.update(audits).set({ status: 'failed', completedAt: new Date(), updatedAt: new Date() }).where(eq(audits.id, audit.id));
