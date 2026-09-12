@@ -15,7 +15,9 @@ async function main() {
   const [audit] = await db.insert(audits).values({ clientId: client.id, status: 'running', targetUrl: target, startedAt: new Date() }).returning();
   try {
     const result = await runAudit(target, { maxPages: 5, maxDepth: 1, renderJs: false, ignoreRobots: false, allowPrivateHosts: false });
-    if (result.pagesCrawled < 1 || result.status >= 400) throw new Error(`Crawl failed: HTTP ${result.status}, ${result.pagesCrawled} pages`);
+    // runAudit.status belongs to the first page to finish, not necessarily
+    // the entry URL. HTTP errors are findings, not proof the entire crawl failed.
+    if (result.pagesCrawled < 1) throw new Error('Crawl failed: no pages could be inspected');
     db.transaction((tx) => {
       if (result.findings.length) tx.insert(auditIssues).values(result.findings.map(f => ({ ...f, auditId: audit.id }))).run();
       tx.update(audits).set({ status: 'completed', score: result.score, pagesCrawled: result.pagesCrawled, issuesCount: result.findings.length, completedAt: new Date(), updatedAt: new Date() }).where(eq(audits.id, audit.id)).run();
