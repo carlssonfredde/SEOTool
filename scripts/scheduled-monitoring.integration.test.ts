@@ -49,7 +49,7 @@ it("scopes queries, preserves provenance and does not store failed ranks as miss
   expect(sqlite.prepare("SELECT keyword_id,source,device,position,data_date FROM keyword_rankings").all()).toEqual([
     { keyword_id: 1, source: "gsc", device: "mobile", position: 7, data_date: "2026-09-17" },
   ]);
-  expect(shutdownBrowser).toHaveBeenCalledOnce();
+  expect(shutdownBrowser).not.toHaveBeenCalled();
 });
 it("checks only active scoped pages, saves diffs and preserves prior snapshot on failure", async () => {
   vi.mocked(fetchSnapshot).mockResolvedValueOnce({ title: "New title", description: null, h1: null, canonical: null, contentHash: "new" });
