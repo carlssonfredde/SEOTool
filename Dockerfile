@@ -35,7 +35,7 @@ RUN pnpm install --frozen-lockfile=false --ignore-scripts \
 
 # Explicit runtime copy: Next's tracing can omit the dynamically loaded browser.
 RUN mkdir -p /browser-runtime/node_modules \
- && cp -RL node_modules/playwright node_modules/playwright-core /browser-runtime/node_modules/
+ && node -e 'const fs=require("node:fs"),path=require("node:path"); for(const name of ["playwright","playwright-core"]) { const root=path.dirname(require.resolve(name+"/package.json",{paths:[require.resolve("playwright")]})); fs.cpSync(root,"/browser-runtime/node_modules/"+name,{recursive:true,dereference:true}); }'
 
 # ---- build stage: TypeScript + Next.js production build ----
 FROM deps AS build
