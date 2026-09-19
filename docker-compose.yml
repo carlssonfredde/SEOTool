@@ -34,6 +34,8 @@ services:
       APP_PASSWORD: ${APP_PASSWORD:-}
       SEO_GOOGLE_GSC_ONLY: ${SEO_GOOGLE_GSC_ONLY:-0}
       SEO_DISABLE_SCHEDULER: ${SEO_DISABLE_SCHEDULER:-0}
+      SEO_SCHEDULER_MODE: ${SEO_SCHEDULER_MODE:-full}
+      SEO_MONITOR_CLIENT_ID: ${SEO_MONITOR_CLIENT_ID:-}
       # Optional. Signs session cookies once accounts are in use. Leave
       # unset and one is generated into /data/.seo-session-secret on
       # first boot; set it explicitly if you run more than one replica,

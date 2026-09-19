@@ -3,7 +3,7 @@
 # scraping work out of the box.
 
 # ---- deps stage: install only what npm needs to resolve ----
-FROM mcr.microsoft.com/playwright:v1.56.0-noble AS deps
+FROM mcr.microsoft.com/playwright:v1.59.1-noble AS deps
 WORKDIR /app
 
 # pnpm via corepack.
@@ -33,6 +33,10 @@ COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* .npmrc* ./
 RUN pnpm install --frozen-lockfile=false --ignore-scripts \
  && pnpm rebuild
 
+# Explicit runtime copy: Next's tracing can omit the dynamically loaded browser.
+RUN mkdir -p /browser-runtime/node_modules \
+ && cp -RL node_modules/playwright node_modules/playwright-core /browser-runtime/node_modules/
+
 # ---- build stage: TypeScript + Next.js production build ----
 FROM deps AS build
 WORKDIR /app
@@ -44,6 +48,7 @@ RUN pnpm db:generate || true
 
 # Standalone output — much smaller runtime image
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV SEO_DISABLE_SCHEDULER=1
 
 # verify-deps-before-run=false is load-bearing, not tidiness.
 #
@@ -70,7 +75,7 @@ USER pwuser
 CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/mcp-server.ts"]
 
 # ---- runtime stage ----
-FROM mcr.microsoft.com/playwright:v1.56.0-noble AS runner
+FROM mcr.microsoft.com/playwright:v1.59.1-noble AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -116,6 +121,7 @@ RUN mkdir -p /data && chown -R pwuser:pwuser /data
 USER pwuser
 
 COPY --from=build --chown=pwuser:pwuser /app/.next/standalone ./
+COPY --from=deps --chown=pwuser:pwuser /browser-runtime/node_modules ./node_modules
 COPY --from=build --chown=pwuser:pwuser /app/.next/static ./.next/static
 COPY --from=build --chown=pwuser:pwuser /app/public ./public
 COPY --from=build --chown=pwuser:pwuser /app/src/db/migrations ./src/db/migrations
