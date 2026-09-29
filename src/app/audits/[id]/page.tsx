@@ -24,7 +24,7 @@ import { FixWizard } from "@/components/fix-wizard";
 import { IssueExplainer } from "@/components/issue-explainer";
 import { isFixable } from "@/lib/fix-suggestions";
 import { confidenceReason } from "@/lib/audit-confidence";
-import { setStatusForType } from "../issue-actions";
+import { setIssueStatus, setStatusForType } from "../issue-actions";
 
 // Map audit issue-types to the glossary term key.
 const issueTypeToTerm: Record<string, string> = {
@@ -149,7 +149,8 @@ export default async function AuditDetailPage({
   // Only show non-active issues if user explicitly toggles a filter; for now
   // the main view shows everything except resolved/ignored/false-positive.
   const issues = allIssues.filter((i) => i.status === "new");
-  const closedCount = allIssues.length - issues.length;
+  const closedIssues = allIssues.filter((i) => i.status !== "new");
+  const closedCount = closedIssues.length;
 
   const sorted = [...issues].sort(
     (a, b) =>
@@ -307,11 +308,26 @@ export default async function AuditDetailPage({
       </section>
 
       {closedCount > 0 && (
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-200">
-          {closedCount} issue{closedCount === 1 ? "" : "s"} marked resolved /
-          ignored / false positive — they&apos;re hidden from the active list
-          below.
-        </div>
+        <details className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-200">
+          <summary className="cursor-pointer">
+            {closedCount} issue{closedCount === 1 ? "" : "s"} marked resolved /
+            ignored / false positive. Review or restore them.
+          </summary>
+          <ul className="mt-3 space-y-2">
+            {closedIssues.map((issue) => (
+              <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-black/10 p-2">
+                <span className="min-w-0 break-all">
+                  <strong>{issue.type}</strong> · {issue.status} · {issue.url}
+                </span>
+                <form action={setIssueStatus.bind(null, issue.id, "new", auditId)}>
+                  <button type="submit" className="rounded-md border border-emerald-500/30 px-2 py-1 hover:bg-emerald-500/10">
+                    Restore to open
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* SEVERITY STATS */}

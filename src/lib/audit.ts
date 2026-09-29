@@ -53,19 +53,21 @@ function extractTitle(html: string): string | null {
   return m ? decodeEntities(m[1].trim()) : null;
 }
 
-function extractMeta(html: string, name: string, attr = "name"): string | null {
-  const re1 = new RegExp(
-    `<meta[^>]+${attr}=["']${name}["'][^>]*content=["']([^"']*)["']`,
-    "i",
-  );
-  const m1 = html.match(re1);
-  if (m1) return decodeEntities(m1[1].trim());
-  const re2 = new RegExp(
-    `<meta[^>]+content=["']([^"']*)["'][^>]*${attr}=["']${name}["']`,
-    "i",
-  );
-  const m2 = html.match(re2);
-  return m2 ? decodeEntities(m2[1].trim()) : null;
+export function extractMeta(html: string, name: string, attr = "name"): string | null {
+  const tags = html.match(/<meta\b(?:[^<>"']|"[^"<]*"|'[^'<]*')*>/gi) ?? [];
+  for (const tag of tags) {
+    const attributes = new Map<string, string>();
+    const attributePattern = /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+    for (const match of tag.slice(5).matchAll(attributePattern)) {
+      const key = match[1].toLowerCase();
+      if (!attributes.has(key)) attributes.set(key, match[2] ?? match[3] ?? match[4]);
+    }
+    if (attributes.get(attr.toLowerCase())?.toLowerCase() === name.toLowerCase()) {
+      const content = attributes.get("content");
+      if (content !== undefined) return decodeEntities(content.trim());
+    }
+  }
+  return null;
 }
 
 function extractAll(html: string, tagPattern: RegExp): string[] {

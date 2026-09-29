@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/lib/audit.ts"
+        ],
+        "createdAt": "2026-09-29T22:40:50.030Z",
+        "reason": "Crawler regex inspects HTML img tags; no image is rendered by this source file."
+      }
+    ]
+  }
+}
