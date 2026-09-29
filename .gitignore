@@ -128,3 +128,6 @@ CLAUDE.md
 # contain everything — clients, audits, and encrypted API keys. They
 # must never be committed.
 backups/
+
+# Local acceptance evidence and private deployment files
+.local/

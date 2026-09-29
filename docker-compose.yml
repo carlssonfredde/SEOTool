@@ -32,6 +32,8 @@ services:
       # Settings → Team and register instead. Accounts supersede this
       # password — once they exist, APP_PASSWORD no longer gets anyone in.
       APP_PASSWORD: ${APP_PASSWORD:-}
+      SEO_GOOGLE_GSC_ONLY: ${SEO_GOOGLE_GSC_ONLY:-0}
+      SEO_DISABLE_SCHEDULER: ${SEO_DISABLE_SCHEDULER:-0}
       # Optional. Signs session cookies once accounts are in use. Leave
       # unset and one is generated into /data/.seo-session-secret on
       # first boot; set it explicitly if you run more than one replica,

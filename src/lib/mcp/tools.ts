@@ -109,6 +109,13 @@ export async function getClientOverview(clientId: number): Promise<McpToolResult
     .orderBy(desc(audits.id))
     .limit(1);
 
+  const [latestAttempt] = await db
+    .select({ id: audits.id, status: audits.status, startedAt: audits.startedAt, completedAt: audits.completedAt })
+    .from(audits)
+    .where(eq(audits.clientId, clientId))
+    .orderBy(desc(audits.id))
+    .limit(1);
+
   const severityCounts = latestAudit
     ? await db
         .select({
@@ -134,6 +141,7 @@ export async function getClientOverview(clientId: number): Promise<McpToolResult
     ok: true,
     data: {
       client: { id: client.id, name: client.name, url: client.url },
+      latestAttempt: latestAttempt ?? null,
       audit: latestAudit
         ? {
             score: latestAudit.score,

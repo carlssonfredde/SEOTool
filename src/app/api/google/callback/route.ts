@@ -12,17 +12,25 @@ import { logActivity } from "@/lib/activity";
 import { db } from "@/db/client";
 import { clients } from "@/db/schema";
 
+import { cookies } from "next/headers";
+import { GOOGLE_STATE_COOKIE, validGoogleState, gscOnlyMode, gscGrantAllowed } from "@/lib/google-oauth-policy";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const publicOrigin = new URL(resolveRedirectUri(req)).origin;
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
   const state = req.nextUrl.searchParams.get("state") ?? "";
+  if (!validGoogleState(state, req.cookies.get(GOOGLE_STATE_COOKIE)?.value)) {
+    return NextResponse.redirect(new URL("/settings/google?error=invalid-state", publicOrigin));
+  }
+  (await cookies()).set(GOOGLE_STATE_COOKIE, "", { path: "/api/google", maxAge: 0 });
   const isPopup = state.includes("popup");
   const clientIdMatch = state.match(/clientId:(\d+)/);
   const targetClientId = clientIdMatch ? Number(clientIdMatch[1]) : null;
 
-  const settingsUrl = new URL("/settings/google", req.nextUrl.origin);
+  const settingsUrl = new URL("/settings/google", publicOrigin);
 
   function popupResponse(payload: {
     ok: boolean;
@@ -37,8 +45,8 @@ export async function GET(req: NextRequest) {
       }</title></head><body style="background:#0c0d12;color:#fff;font-family:system-ui,sans-serif;padding:24px;text-align:center"><p>${
         payload.ok
           ? "Connected. You can close this window."
-          : "Connection failed: " + (payload.error ?? "unknown")
-      }</p><script>(function(){try{if(window.opener){window.opener.postMessage(${safe},"*");}}catch(e){}setTimeout(function(){window.close();},400);})();</script></body></html>`,
+          : "Connection failed. Return to Google settings and try again."
+      }</p><script>(function(){try{if(window.opener){window.opener.postMessage(${safe},${JSON.stringify(publicOrigin)});}}catch(e){}setTimeout(function(){window.close();},400);})();</script></body></html>`,
       { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
     );
   }
@@ -78,6 +86,12 @@ export async function GET(req: NextRequest) {
     const msg = `exchange-failed: ${(err as Error).message}`;
     if (isPopup) return popupResponse({ ok: false, error: msg });
     settingsUrl.searchParams.set("error", msg);
+    return NextResponse.redirect(settingsUrl);
+  }
+
+  if (gscOnlyMode() && !gscGrantAllowed(tokens.scope)) {
+    if (isPopup) return popupResponse({ ok: false, error: "unexpected-scopes" });
+    settingsUrl.searchParams.set("error", "unexpected-scopes");
     return NextResponse.redirect(settingsUrl);
   }
 
@@ -121,7 +135,7 @@ export async function GET(req: NextRequest) {
 
     if (isPopup) return popupResponse({ ok: true, email });
     return NextResponse.redirect(
-      new URL(`/clients/${targetClientId}?google-connected=1`, req.nextUrl.origin),
+      new URL(`/clients/${targetClientId}?google-connected=1`, publicOrigin),
     );
   }
 
@@ -137,14 +151,14 @@ export async function GET(req: NextRequest) {
   // immediately if the user just granted the gmail.readonly scope.
   try {
     const { refreshGmailScopeCache } = await import("@/lib/gmail-scope");
-    await refreshGmailScopeCache();
+    if (!gscOnlyMode()) await refreshGmailScopeCache();
   } catch {
     // ignore — banner will refresh on its own 12h cache cycle
   }
 
   await logActivity({
     kind: "google.connected",
-    message: `Connected Google account${email ? ` (${email})` : ""} for GSC + GA4 access.`,
+    message: `Connected Google account${email ? ` (${email})` : ""} for ${gscOnlyMode() ? "read-only Search Console" : "GSC + GA4"} access.`,
     level: "success",
   });
 

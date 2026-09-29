@@ -18,6 +18,7 @@ import {
   resolveRedirectUriFromHeaders,
 } from "@/lib/google-oauth";
 import { getSetting } from "@/lib/settings-store";
+import { gscOnlyMode } from "@/lib/google-oauth-policy";
 import { GoogleCredentialsForm } from "./credentials-form";
 import {
   clearGoogleCredentials,
@@ -43,6 +44,31 @@ export default async function GoogleSettingsPage({
   // Google a different one.
   const hdrs = await headers();
   const redirectUri = resolveRedirectUriFromHeaders(hdrs);
+
+  if (gscOnlyMode()) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-6">
+        <PageHeader title="Search Console connection" description="Read search performance for your websites. This connection requests Search Console read access and your Google account identity." icon={Sparkles} accent="violet" />
+        {params.error && <Banner tone="error" icon={AlertCircle}>Connection failed: {params.error}. Return to this page and start a new sign-in.</Banner>}
+        <Section title="1. Prepare Google access">
+          <p>Create a dedicated Google Cloud project, enable the Search Console API, and configure an OAuth consent screen with yourself as a test user.</p>
+          <p>Create a Web application OAuth client with this exact redirect URI:</p>
+          <RedirectUriBox uri={redirectUri} />
+          <ExternalLinkA href="https://console.cloud.google.com/apis/credentials">Open Google Cloud credentials</ExternalLinkA>
+          <p>Gmail, Analytics, and Business Profile permissions are not requested. Use a new OAuth client if an existing client has broader grants.</p>
+        </Section>
+        {!status.credentialsFromEnv && <Section title="2. Save the OAuth client">
+          <GoogleCredentialsForm initialClientId={clientId} hasSecret={Boolean(clientSecret)} />
+        </Section>}
+        <Section title="3. Connect Search Console">
+          {!status.credentialsSet ? <p>Save your OAuth client above to enable sign-in.</p> : status.connected ? <>
+            <p>Connected{status.email ? ` as ${status.email}` : ""}. Select the matching Search Console property on your client page.</p>
+            <form action={disconnectGoogleAccount}><Button type="submit" variant="ghost">Disconnect</Button></form>
+          </> : <Link href="/api/google/auth" className="text-primary underline">Connect Google for Search Console</Link>}
+        </Section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

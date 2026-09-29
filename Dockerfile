@@ -58,6 +58,17 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # there is nothing for that check to usefully do here.
 RUN pnpm config set verify-deps-before-run false && pnpm build
 
+# Full source and dependencies for stdio MCP; shares the dashboard volume.
+# Kept separate because Next standalone output does not package the TS server.
+FROM deps AS mcp
+WORKDIR /app
+COPY --chown=pwuser:pwuser src ./src
+COPY --chown=pwuser:pwuser scripts ./scripts
+COPY --chown=pwuser:pwuser tsconfig.json ./tsconfig.json
+ENV SEO_MCP_READ_ONLY=1 SEO_DB_PATH=/data/data.db
+USER pwuser
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/mcp-server.ts"]
+
 # ---- runtime stage ----
 FROM mcr.microsoft.com/playwright:v1.56.0-noble AS runner
 WORKDIR /app

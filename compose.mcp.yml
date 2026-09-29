@@ -1,0 +1,21 @@
+services:
+  mcp:
+    profiles: [mcp]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mcp
+    image: seo-tool-mcp:local
+    stdin_open: true
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      SEO_MCP_READ_ONLY: "1"
+      SEO_DB_PATH: /data/data.db
+      SEO_DATA_DIR: /data
+    volumes:
+      - seo-data:/data:ro
