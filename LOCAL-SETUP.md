@@ -148,3 +148,39 @@ cookie; callbacks without the matching state cannot store tokens.
 
 References: [Google web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)
 and [Search Console authorization](https://developers.google.com/webmaster-tools/v1/how-tos/authorizing).
+
+## Native daily monitoring (optional)
+
+For explicitly authorized recurring collection, set in the private `.env`:
+
+```dotenv
+SEO_DISABLE_SCHEDULER=0
+SEO_SCHEDULER_MODE=monitoring
+SEO_MONITOR_CLIENT_ID=1
+```
+
+Rebuild and recreate only the dashboard with `docker compose up -d --build seo`.
+Keep the same project and persistent volume; back up the database before upgrading.
+The server starts two collection jobs automatically, without a browser visit:
+all saved keywords and active page monitors belonging to the selected client.
+Each runs when due, 24 hours after its last successful completion. The first
+run starts about ten seconds after boot; downtime is caught up on the next start.
+Docker and the computer must be running. This is not a fixed wall-clock schedule.
+
+This mode does not run the central agent, reports, notifications, CMS actions,
+automation rules, cleanup or backup jobs. Results stay in the existing ranking
+and page history, with source/device/date preserved. A missing position is not
+a proven ranking loss. Collection failures do not overwrite page snapshots or
+insert failed rankings; the scheduler records affected IDs and retries after
+30 minutes. Other entries in a partially failed batch may be collected again.
+Settings → Automations shows each job's last success and error. Invalid mode or
+client configuration fails closed. `SEO_DISABLE_SCHEDULER=1` remains the master
+off switch; read-only MCP always keeps scheduling off. Default `full` mode retains
+upstream behavior and is **not** the appropriate mode for this limited pilot.
+
+After verifying saved results from a boot-triggered run, pause any overlapping
+Codex heartbeat to avoid duplicate checks. This collection-only mode does not
+replace the heartbeat's natural-language analysis or change notifications.
+
+Focused monitoring verification (synthetic temporary database, no external requests):
+`pnpm exec vitest run --config vitest.monitoring.config.ts`.

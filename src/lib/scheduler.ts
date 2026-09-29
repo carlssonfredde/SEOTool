@@ -58,6 +58,29 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
 function runners(): Runner[] {
+  const mode = process.env.SEO_SCHEDULER_MODE ?? "full";
+  if (mode === "monitoring") {
+    const raw = process.env.SEO_MONITOR_CLIENT_ID ?? "";
+    const clientId = Number(raw);
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(clientId)) {
+      throw new Error("Monitoring requires a positive SEO_MONITOR_CLIENT_ID");
+    }
+    return [
+      {
+        id: `monitoring_ranks_${clientId}`,
+        label: `Daily keyword checks (client ${clientId})`,
+        everyMs: 24 * HOUR,
+        run: async () => (await import("./scheduled-monitoring")).checkScheduledRanks(clientId),
+      },
+      {
+        id: `monitoring_pages_${clientId}`,
+        label: `Daily page checks (client ${clientId})`,
+        everyMs: 24 * HOUR,
+        run: async () => (await import("./scheduled-monitoring")).checkScheduledPages(clientId),
+      },
+    ];
+  }
+  if (mode !== "full") throw new Error("Invalid SEO_SCHEDULER_MODE");
   return [
     {
       id: "daily_agent",
@@ -126,40 +149,41 @@ const inFlight = new Set<string>();
 
 async function runOne(r: Runner, now: number): Promise<void> {
   if (inFlight.has(r.id)) return;
-
-  const [startedAt, finishedAt] = await Promise.all([
-    getSetting<number>(startedKey(r.id)).catch(() => null),
-    getSetting<number>(finishedKey(r.id)).catch(() => null),
-  ]);
-
-  // Another process (or an earlier tick) is mid-run and hasn't gone
-  // stale yet — leave it alone.
-  const running =
-    typeof startedAt === "number" &&
-    (typeof finishedAt !== "number" || finishedAt < startedAt);
-  if (running && now - startedAt < STALE_RUN_MS) return;
-
-  // Not due yet. Measured from the last SUCCESSFUL finish, so a run
-  // that crashed retries on the next tick instead of being treated as
-  // done for a full period — the bug that made a mid-run crash cost a
-  // whole day of automation.
-  if (typeof finishedAt === "number" && now - finishedAt < r.everyMs) return;
-
   inFlight.add(r.id);
-  await setSetting(startedKey(r.id), now).catch(() => undefined);
   try {
-    await r.run();
-    await setSetting(finishedKey(r.id), Date.now()).catch(() => undefined);
-    await setSetting(errorKey(r.id), null).catch(() => undefined);
-  } catch (err) {
-    // Record and move on. One failing runner must not stop the others,
-    // and the error needs to be visible in Settings rather than only in
-    // a log the user will never open.
-    console.error(`[scheduler] ${r.id} failed:`, (err as Error).message);
-    await setSetting(errorKey(r.id), (err as Error).message).catch(
-      () => undefined,
-    );
-    // Leave finished_at alone so the next tick retries.
+    const [startedAt, finishedAt] = await Promise.all([
+      getSetting<number>(startedKey(r.id)).catch(() => null),
+      getSetting<number>(finishedKey(r.id)).catch(() => null),
+    ]);
+
+    // Another process (or an earlier tick) is mid-run and hasn't gone
+    // stale yet — leave it alone.
+    const running =
+      typeof startedAt === "number" &&
+      (typeof finishedAt !== "number" || finishedAt < startedAt);
+    if (running && now - startedAt < STALE_RUN_MS) return;
+
+    // Not due yet. Measured from the last SUCCESSFUL finish, so a run
+    // that crashed retries on the next tick instead of being treated as
+    // done for a full period — the bug that made a mid-run crash cost a
+    // whole day of automation.
+    if (typeof finishedAt === "number" && now - finishedAt < r.everyMs) return;
+
+    await setSetting(startedKey(r.id), now).catch(() => undefined);
+    try {
+      await r.run();
+      await setSetting(finishedKey(r.id), Date.now()).catch(() => undefined);
+      await setSetting(errorKey(r.id), null).catch(() => undefined);
+    } catch (err) {
+      // Record and move on. One failing runner must not stop the others,
+      // and the error needs to be visible in Settings rather than only in
+      // a log the user will never open.
+      console.error(`[scheduler] ${r.id} failed:`, (err as Error).message);
+      await setSetting(errorKey(r.id), (err as Error).message).catch(
+        () => undefined,
+      );
+      // Leave finished_at alone; retry after the stale-run window.
+    }
   } finally {
     inFlight.delete(r.id);
   }
@@ -173,7 +197,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * instead of waiting a full tick.
  */
 export async function tickScheduler(): Promise<void> {
-  if (process.env.SEO_DISABLE_SCHEDULER === "1") return;
+  if (process.env.SEO_DISABLE_SCHEDULER === "1" || process.env.SEO_MCP_READ_ONLY === "1") return;
   const now = Date.now();
   // Sequential: these all hit the same SQLite file and several launch
   // browsers. Running six at once on a 1-vCPU VPS is how you get an
@@ -192,8 +216,9 @@ export async function tickScheduler(): Promise<void> {
  */
 export function startScheduler(): void {
   if (timer) return;
-  if (process.env.SEO_DISABLE_SCHEDULER === "1") return;
+  if (process.env.SEO_DISABLE_SCHEDULER === "1" || process.env.SEO_MCP_READ_ONLY === "1") return;
 
+  runners(); // Validate scope before creating any timers.
   timer = setInterval(() => {
     void tickScheduler().catch(() => undefined);
   }, TICK_MS);
