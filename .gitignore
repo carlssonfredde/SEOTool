@@ -131,3 +131,6 @@ backups/
 
 # Local acceptance evidence and private deployment files
 .local/
+
+# Local design-hook execution cache (machine paths and scan state).
+.impeccable/hook.cache.json

@@ -75,7 +75,9 @@ has reloaded its tools. Keep machine-specific configuration out of public Git.
 ## Manual baseline and website workflow
 
 The operator-only `scripts/local-audit.ts` uses the upstream crawler with five
-pages maximum, depth one, robots enabled, static HTML, and private hosts refused.
+pages maximum and depth one by default, robots enabled, static HTML, and private
+hosts refused. For a comparable broader audit, pass `--max-pages` (5–25) and
+`--max-depth` (1–2) explicitly. Record the options when comparing scores.
 It does not run AI, CMS writes, notifications, or automations. Ancillary upstream
 robots/sitemap/site-wide/broken-link checks make extra bounded requests: five
 pages is a page-analysis cap, not a five-HTTP-request cap. It stores real findings
@@ -91,6 +93,14 @@ docker run --rm --cap-drop ALL --security-opt no-new-privileges \
   node node_modules/tsx/dist/cli.mjs scripts/local-audit.ts \
   https://djfreddy.se/ 'DJ Freddy'
 ```
+
+To revisit the DJ Freddy portfolio and media pages, use
+`--max-pages 25 --max-depth 2`. The operator crawl preserves `ignored` and
+`false_positive` statuses from the latest completed crawler audit when the same issue
+type and URL recur. Mark an issue `new` again to unmute it; `resolved` issues
+reopen if the crawler still finds them. The dashboard's own crawl follows the
+same status rules and does not create tasks from muted findings. Existing tasks
+are separate records. The score still measures raw findings, including muted ones.
 
 Always pair `list_audit_issues` with `get_client_overview`: findings refer to the
 last completed audit, while `latestAttempt` reveals a newer failed/running attempt.

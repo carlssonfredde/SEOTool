@@ -12,11 +12,11 @@ export async function setIssueStatus(
   status: IssueStatus,
   auditId: number,
 ) {
-  if (!Number.isFinite(issueId) || issueId <= 0) return;
+  if (!Number.isFinite(issueId) || issueId <= 0 || !Number.isFinite(auditId) || auditId <= 0) return;
   await db
     .update(auditIssues)
     .set({ status, updatedAt: new Date() })
-    .where(eq(auditIssues.id, issueId));
+    .where(and(eq(auditIssues.id, issueId), eq(auditIssues.auditId, auditId)));
   revalidatePath(`/audits/${auditId}`);
 }
 

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { audits, auditIssues, clients, tasks } from "@/db/schema";
 import { runAudit } from "@/lib/audit";
@@ -71,7 +71,7 @@ export async function runAuditForClient(clientId: number) {
     .select()
     .from(audits)
     .where(
-      and(eq(audits.clientId, clientId), eq(audits.status, "completed")),
+      and(eq(audits.clientId, clientId), eq(audits.status, "completed"), eq(audits.kind, "crawler")),
     )
     .orderBy(desc(audits.completedAt))
     .limit(1);
@@ -128,26 +128,22 @@ export async function runAuditForClient(clientId: number) {
   }
 
   if (result.findings.length > 0) {
-    // Carry forward issue status (ignored / resolved / false_positive)
-    // from prior audits — same (type, url) on the same client. Without
-    // this, every re-run resurrects issues the user previously dismissed.
-    const priorIssues = await db
+    // Preserve the latest audit's mute decisions for the same (type, URL).
+    // A resolved issue reopens if the crawler still finds it, and restoring
+    // an issue to "new" must override any older mute decision.
+    const priorIssues = previousAudit ? await db
       .select({
         type: auditIssues.type,
         url: auditIssues.url,
         status: auditIssues.status,
       })
       .from(auditIssues)
-      .innerJoin(audits, eq(audits.id, auditIssues.auditId))
-      .where(
-        and(
-          eq(audits.clientId, clientId),
-          ne(auditIssues.status, "new"),
-        ),
-      );
+      .where(eq(auditIssues.auditId, previousAudit.id)) : [];
     const statusByKey = new Map<string, string>();
     for (const p of priorIssues) {
-      if (p.type && p.url) statusByKey.set(`${p.type}::${p.url}`, p.status);
+      if (p.status === "ignored" || p.status === "false_positive") {
+        statusByKey.set(`${p.type}::${p.url}`, p.status);
+      }
     }
     await db.insert(auditIssues).values(
       result.findings.map((f) => {
@@ -164,13 +160,16 @@ export async function runAuditForClient(clientId: number) {
             severity: f.severity,
           }),
           ...(inheritedStatus
-            ? { status: inheritedStatus as "ignored" | "resolved" | "false_positive" }
+            ? { status: inheritedStatus as "ignored" | "false_positive" }
             : {}),
         };
       }),
     );
 
-    const generatedTasks = findingsToTasks(result.findings);
+    const activeFindings = result.findings.filter(
+      (finding) => !statusByKey.has(`${finding.type}::${finding.url}`),
+    );
+    const generatedTasks = findingsToTasks(activeFindings);
     if (generatedTasks.length > 0) {
       const now = Date.now();
       const dayMs = 86_400_000;
